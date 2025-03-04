@@ -1,0 +1,735 @@
+{
+  "name": "Virtual Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1000,
+        -60
+      ],
+      "id": "fc7d2c7f-7930-43e2-9ab4-778dfe3945c6",
+      "name": "Telegram Trigger",
+      "webhookId": "bffb7502-df2f-46df-b8e4-90d7f1647730",
+      "credentials": {
+        "telegramApi": {
+          "id": "KPUBcGxB8BXUXmZs",
+          "name": "VA Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.message.text }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a6d6da92-8272-4f6f-97be-7b733fc5b6d2",
+                    "leftValue": "={{ $json.message.voice.file_id }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "voice"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -700,
+        -40
+      ],
+      "id": "8b201a36-c10f-4470-8020-4112634ecae3",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "13f27e1a-8d2b-4e19-afe4-ee282c5098a7",
+              "name": "=text",
+              "value": "={{ $json.message.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -340,
+        -180
+      ],
+      "id": "7fb53a43-683c-4c9d-8b42-29e0bda5cdbb",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "agent": "openAiFunctionsAgent",
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "options": {
+          "systemMessage": "=<Role>\nYou are a personal assistant. Your job is to control the flow of data, meetings and tasks to right tools to fulfill the user's request.\n</Role>\n\n<Goal>\nCreate and manage meetings and tasks the user with their Google Calendar and Notion Tasks list.\n</Goal>\n\n<Instructions>\n    <Instruction>Today's date is {{ $now }}.</Instruction>\n    <Instruction>You have access to all necessary following tools: Calendar, Notionl. You should only report back to the user if critical information is unavailable.\n</Instruction>\n\n<Instruction>\nAnytime the user requests for specific information regarding calendar events or tasks, make sure you send the query to the respective area. Don't rely on memory. Always double check.\n</Instruction>\n\n<Instruction>\n When the user wants to create a meeting, determine the following:\n  <Details>\n    Who?\n    About what?\n    When?\n    Where?\n    Attendee availability?\n  </Details>\n</Instruction>\n\n<Calendar-Instruction>\nOnce you have these details, go through the following steps:\n  <Steps>\n     <Step-1>\nWhen creating a claendar always create an event description that can be added to the event description in Google Calendar, even if it's small. \n    </Step-1>\n  </Steps>\n</Calendar-Instruction>\n\n<Notion-Instruction>\nOnce you have these details, go through the following steps:\n  <Steps>\n     <Step-1>\nAlways check existing tasks to validate inputs such as user names.\n    </Step-1>\n     <Step-2>\nIf a similar user exists in the Notion DB e.g. Tom has been requested and Tom Smith is already in the DB then use the existing Entry Tom Smith.    </Step-2>\n  \n  </Steps>\n</Notion-Instruction>\n\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        0,
+        -60
+      ],
+      "id": "2dd856f3-87e7-4547-8ee3-05b940d8c43d",
+      "name": "Orchestrator Agent"
+    },
+    {
+      "parameters": {
+        "name": "Google_Calendar_Events",
+        "description": "Call this tool in order to search, update, or create events in Google Calendar.",
+        "workflowId": {
+          "__rl": true,
+          "value": "fOdHvWYGfSYJOlaw",
+          "mode": "list",
+          "cachedResultName": "Virtual Assistant — Google Calendar Manager"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "telegramID": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+            "chatInput": "={{ $fromAI('query','google calendar event details query from user and chatbot') }}"
+          },
+          "matchingColumns": [
+            "chatInput"
+          ],
+          "schema": [
+            {
+              "id": "chatInput",
+              "displayName": "chatInput",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "telegramID",
+              "displayName": "telegramID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2,
+      "position": [
+        -20,
+        340
+      ],
+      "id": "6c7d2b11-779b-42f8-a72e-a74c6ebfbc36",
+      "name": "calendar manager"
+    },
+    {
+      "parameters": {
+        "name": "CRM_Area",
+        "description": "Call this tool to create new contacts, update contacts or search contacts in my Airtable CRM",
+        "workflowId": {
+          "__rl": true,
+          "value": "sedRJgHMqRtPf4zG",
+          "mode": "list",
+          "cachedResultName": "CRM Area"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chatInput": "={{ $fromAI('crmQuery','query with requested CRM changes or additions') }}"
+          },
+          "matchingColumns": [
+            "chatInput"
+          ],
+          "schema": [
+            {
+              "id": "chatInput",
+              "displayName": "chatInput",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2,
+      "position": [
+        540,
+        340
+      ],
+      "id": "75980b16-19ad-4e51-8e37-d7f1ac8afe0e",
+      "name": "crm manager",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "name": "email_sending",
+        "description": "Call this tool to send event details to the attendee of the meeting.",
+        "workflowId": {
+          "__rl": true,
+          "value": "E0DVvIpnQ0jQrRDi",
+          "mode": "list",
+          "cachedResultName": "Email Area"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chatInput": "={{ $fromAI('eventDetails','all details of event to email to attendee') }}",
+            "telegramID": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "chatInput",
+              "displayName": "chatInput",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "telegramID",
+              "displayName": "telegramID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2,
+      "position": [
+        360,
+        340
+      ],
+      "id": "b621a2c8-837f-4aef-a776-4044131a1cc7",
+      "name": "email manager",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.voice.file_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -460,
+        40
+      ],
+      "id": "1b0d4dbb-eb0a-4bd3-8ff8-6f9241958ae2",
+      "name": "Download Voice File",
+      "webhookId": "9e469a1f-8537-4c14-9e58-7c9e84767dcf",
+      "credentials": {
+        "telegramApi": {
+          "id": "KPUBcGxB8BXUXmZs",
+          "name": "VA Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -260,
+        40
+      ],
+      "id": "37fafb0e-f742-45c2-b378-767d049c1272",
+      "name": "Transcribe File",
+      "credentials": {
+        "openAiApi": {
+          "id": "0cs0RBSsQ3W1eoL7",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "Notion_task_list_manager",
+        "description": "Call this tool in order to search, update, or create events in Notion Task List.",
+        "workflowId": {
+          "__rl": true,
+          "value": "Ml9gLhlycpFLtlrA",
+          "mode": "list",
+          "cachedResultName": "Virtual Assistant — Notion Task Manager"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "telegramID": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+            "chatInput": "={{ $fromAI('notion_query','task or tasklist query from user and chatbot') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "chatInput",
+              "displayName": "chatInput",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "telegramID",
+              "displayName": "telegramID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2,
+      "position": [
+        160,
+        340
+      ],
+      "id": "c9783556-35d3-4224-864f-ec909884b26c",
+      "name": "Notion Task Manager"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "input": "={{ $json.output }}",
+        "voice": "nova",
+        "options": {
+          "speed": 1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        900,
+        540
+      ],
+      "id": "f6221e49-df21-4927-b2ea-468f8ac74371",
+      "name": "Generate Audio",
+      "credentials": {
+        "openAiApi": {
+          "id": "0cs0RBSsQ3W1eoL7",
+          "name": "OpenAi account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1140,
+        -80
+      ],
+      "id": "a9394623-df23-40e4-b4aa-c19dc0a96beb",
+      "name": "Respond Text",
+      "webhookId": "2f0ad6fb-80ed-480c-961f-8f9d35453940",
+      "credentials": {
+        "telegramApi": {
+          "id": "KPUBcGxB8BXUXmZs",
+          "name": "VA Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendAudio",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "binaryData": true,
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1180,
+        540
+      ],
+      "id": "e244ade9-cc22-4632-82b7-a6adc8193b92",
+      "name": "Respond Audio",
+      "webhookId": "76311877-885f-493b-a329-3055fb49b75c",
+      "credentials": {
+        "telegramApi": {
+          "id": "KPUBcGxB8BXUXmZs",
+          "name": "VA Bot"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Telegram Trigger').item.json.message.text }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c0c89d99-7bff-44d5-89e3-aeafccbc1668",
+                    "leftValue": "={{ $('Telegram Trigger').item.json.message.voice.file_id }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "voice"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        520,
+        -60
+      ],
+      "id": "ed597326-e19e-4a4d-84b5-843f6cc62f5b",
+      "name": "Switch2"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -160,
+        340
+      ],
+      "id": "73e588ad-2d0e-4b59-a04a-6d96bde1b340",
+      "name": "memory"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -300,
+        340
+      ],
+      "id": "02d2fce5-f170-4496-be8f-92617482b214",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "0cs0RBSsQ3W1eoL7",
+          "name": "OpenAi account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Download Voice File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Orchestrator Agent": {
+      "main": [
+        [
+          {
+            "node": "Switch2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "calendar manager": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "crm manager": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "email manager": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Voice File": {
+      "main": [
+        [
+          {
+            "node": "Transcribe File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe File": {
+      "main": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion Task Manager": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Audio": {
+      "main": [
+        [
+          {
+            "node": "Respond Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch2": {
+      "main": [
+        [
+          {
+            "node": "Respond Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a0ba0e18-460e-497c-ad1e-7508b42d53e5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1dca8ca0474f36543bf9c8b461abbb016e444e1ae134a38c9a4fbbb75ce88c97"
+  },
+  "id": "prc3Qm7b01MyWirq",
+  "tags": []
+}

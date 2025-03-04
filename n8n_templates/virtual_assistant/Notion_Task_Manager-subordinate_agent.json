@@ -1,0 +1,349 @@
+{
+  "name": "Notion Task Manager",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=You are Task Manager Assistant, a virtual assistant designed to help users manage their task list effectively using the Getting Things Done (GTD) methodology. Your goal is to ensure that tasks are created, updated, and tracked properly based on previous tasks and established rules.\n\nGeneral Instructions:\nAlways retrieve previous tasks before processing any new request.\nWhen creating a new task, check existing tasks for valid inputs, especially for \"Who\" (people's names). For example, if the input is \"Cat\", infer that the \"Who\" field should be \"Cat Dearlove\", based on previous tasks. Some fields are case-sensitive.\nThe current date and time is: {{ $now }}.\nTask Creation & Defaults:\nIf the user does not specify a due date, set it to today’s date.\nIf the user does not specify a location (Where), set it to \"Office\".\nIf the user does not specify an assignee (Who), set it to \"Self\".\nIf the user does not specify a status, set it to \"Not started\".\nTask Updates & Processing:\nUpdate or create a new task based on the user's request.\nNot all task properties need to be filled in; only update relevant fields.\nEnsure clarity, accuracy, and consistency when managing tasks."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        500,
+        -320
+      ],
+      "id": "0e014aeb-76ca-42e0-b8e4-6e8644fd3ec9",
+      "name": "AI Agent",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "o3-mini",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        100
+      ],
+      "id": "11949343-229c-45f3-a936-99db3084612e",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "0cs0RBSsQ3W1eoL7",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.telegramID }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        400,
+        100
+      ],
+      "id": "908703e2-3b3a-42cf-a100-a46608009ae4",
+      "name": "Window Buffer Memory"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Gets tasks due from past 7 days and in future, that are not completed",
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "d4f68170-dcf6-4a02-a064-8299e5a7a816",
+          "mode": "list",
+          "cachedResultName": "GTD - Tasks Table",
+          "cachedResultUrl": "https://www.notion.so/d4f68170dcf64a02a0648299e5a7a816"
+        },
+        "limit": 15,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "key": "Due Date|date",
+              "condition": "after",
+              "date": "={{ new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() }}"
+            },
+            {
+              "key": "Status|status",
+              "condition": "does_not_equal",
+              "statusValue": "Done"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notionTool",
+      "typeVersion": 2.2,
+      "position": [
+        580,
+        100
+      ],
+      "id": "49b05fd5-d9bf-4657-8bf8-870800118ec8",
+      "name": "Get Tasks",
+      "notesInFlow": true,
+      "credentials": {
+        "notionApi": {
+          "id": "AkV96ZCxbZ6MteYc",
+          "name": "Notion account"
+        }
+      },
+      "notes": "Get Tasks"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Update tasks in Notion database (if appropriate)",
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $fromAI('id','id of database page to update') }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Status|status",
+              "statusValue": "={{ $fromAI('task_status','current status of task') }}"
+            },
+            {
+              "key": "Who|multi_select",
+              "multiSelectValue": "={{ $fromAI('who','array of people the task relates to') }}"
+            },
+            {
+              "key": "Assigned To|multi_select",
+              "multiSelectValue": "={{ $fromAI('assigned_to','array of people working on the task') }}"
+            },
+            {
+              "key": "Company|multi_select",
+              "multiSelectValue": "={{ $fromAI('company','array of companies work is being done for') }}"
+            },
+            {
+              "key": "Due Date|date",
+              "includeTime": false,
+              "date": "={{ $fromAI('due_date','date work is expected to be actioned') }}"
+            },
+            {
+              "key": "Title|title",
+              "title": "={{ $fromAI('title','main title of task page') }}"
+            },
+            {
+              "key": "Where|multi_select",
+              "multiSelectValue": "={{ $fromAI('where','location work would be carried out') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notionTool",
+      "typeVersion": 2.2,
+      "position": [
+        920,
+        100
+      ],
+      "id": "468c631e-1863-4279-a6c3-ddda28f4d2aa",
+      "name": "Update Tasks",
+      "credentials": {
+        "notionApi": {
+          "id": "AkV96ZCxbZ6MteYc",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Create new tasks in Notion database (if appropriate), before this task is used the \"Get tasks\" task should be used.",
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "d4f68170-dcf6-4a02-a064-8299e5a7a816",
+          "mode": "list",
+          "cachedResultName": "GTD - Tasks Table",
+          "cachedResultUrl": "https://www.notion.so/d4f68170dcf64a02a0648299e5a7a816"
+        },
+        "title": "={{ $fromAI('title','main title of task page') }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Assigned To|multi_select",
+              "multiSelectValue": "={{ $fromAI('assigned_to','Array of people who will work on task') }}"
+            },
+            {
+              "key": "Due Date|date",
+              "includeTime": false,
+              "date": "={{ $fromAI('due_date','date work is expected to be actioned') }}"
+            },
+            {
+              "key": "Status|status",
+              "statusValue": "={{ $fromAI('task_status','current status of task') }}"
+            },
+            {
+              "key": "Where|multi_select",
+              "multiSelectValue": "={{ $fromAI('where','location work would be carried out') }}"
+            },
+            {
+              "key": "Who|multi_select",
+              "multiSelectValue": "={{ $fromAI('who','array of people the task relates to') }}"
+            }
+          ]
+        },
+        "blockUi": {
+          "blockValues": [
+            {
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $fromAI('body','content of task') }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notionTool",
+      "typeVersion": 2.2,
+      "position": [
+        740,
+        100
+      ],
+      "id": "02878d29-6ea8-4bff-8aaf-0d630efbe5df",
+      "name": "Create Tasks",
+      "notesInFlow": false,
+      "credentials": {
+        "notionApi": {
+          "id": "AkV96ZCxbZ6MteYc",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "chatInput"
+            },
+            {
+              "name": "telegramID"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -100,
+        -320
+      ],
+      "id": "eba82d52-d11b-4ecd-8378-52f05630e7a4",
+      "name": "When Executed by Another Workflow"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        []
+      ]
+    },
+    "Get Tasks": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Tasks": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Tasks": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "10d2a62d-4d60-4b67-b8e5-504f502da59f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1dca8ca0474f36543bf9c8b461abbb016e444e1ae134a38c9a4fbbb75ce88c97"
+  },
+  "id": "Ml9gLhlycpFLtlrA",
+  "tags": []
+}
