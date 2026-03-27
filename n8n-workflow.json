@@ -1,0 +1,495 @@
+{
+  "name": "Invoice Processing and Xero Integration",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "get",
+        "folderId": {
+          "__rl": true,
+          "value": "inbox",
+          "mode": "name"
+        },
+        "download": true,
+        "limit": 10,
+        "additionalFields": {
+          "filter": {
+            "isRead": false
+          }
+        }
+      },
+      "id": "d65fa94d-8c53-42a8-93a2-e7b4511ef011",
+      "name": "Microsoft Outlook",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "a8b85d37-d6b0-4956-817d-bba348b5559e"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json[\"isInvoice\"]}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "e4df49af-9987-4eac-bb1f-e77cc1bd004f",
+      "name": "Invoice Detection Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "apiKey",
+        "nodeCredentialType": "openAiApi",
+        "operation": "completion",
+        "model": "gpt-4o",
+        "prompt": "=You are an invoice detection system. Analyze the following email and determine if it's likely to contain an invoice. The email subject is: \"{{$node[\"Microsoft Outlook\"].json[\"subject\"]}}\" and the email body is: \"{{$node[\"Microsoft Outlook\"].json[\"bodyPreview\"]}}\". \n\nAlso consider these attachment names if any: {{$node[\"Microsoft Outlook\"].json[\"hasAttachments\"] ? $node[\"Microsoft Outlook\"].json[\"attachments\"].map(a => a.name).join(\", \") : \"No attachments\"}}\n\nRespond only with a JSON object with the following structure:\n{\n  \"isInvoice\": true/false,\n  \"confidence\": 0-1 (probability score),\n  \"reasoning\": \"your reasoning here\"\n}",
+        "options": {
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "5a1a3f82-7c75-4b5f-9b6e-b8a22ded7cab",
+      "name": "OpenAI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "apiKey",
+        "nodeCredentialType": "openAiApi",
+        "operation": "completion",
+        "model": "gpt-4o",
+        "prompt": "=You are an invoice data extraction system. Extract the following fields from this email and its attachments (if possible):\n- Invoice number\n- Date\n- Due date\n- Total amount\n- Currency\n- Tax amount\n- Tax rate\n- Vendor name\n- Vendor details\n\nEmail subject: \"{{$node[\"Microsoft Outlook\"].json[\"subject\"]}}\"\nEmail body: \"{{$node[\"Microsoft Outlook\"].json[\"bodyPreview\"]}}\"\n\nPlease respond with only a JSON object containing these fields. For any field you cannot determine, use null as the value.",
+        "options": {
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "0978ff54-cc93-40cc-93a7-f5ba5c6aaccd",
+      "name": "OpenAI1",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 2,
+      "position": [
+        850,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.exchangerate-api.com/v4/latest/{{$node[\"OpenAI1\"].json[\"currency\"]}}",
+        "options": {}
+      },
+      "id": "e2b36fe4-7d13-4e55-8343-4f31d5c12faa",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1050,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "requestMethod": "POST",
+        "url": "https://api.xero.com/api.xro/2.0/Invoices",
+        "options": {
+          "headerParametersUi": {
+            "parameter": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Accept",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "Type",
+              "value": "ACCPAY"
+            },
+            {
+              "name": "Contact",
+              "value": "={{ {\"Name\": $node[\"OpenAI1\"].json[\"vendorName\"] } }}"
+            },
+            {
+              "name": "Date",
+              "value": "={{$node[\"OpenAI1\"].json[\"date\"]}}"
+            },
+            {
+              "name": "DueDate",
+              "value": "={{$node[\"OpenAI1\"].json[\"dueDate\"]}}"
+            },
+            {
+              "name": "LineItems",
+              "value": "={{ [{ \"Description\": \"Invoice \" + $node[\"OpenAI1\"].json[\"invoiceNumber\"], \"Quantity\": 1, \"UnitAmount\": $node[\"OpenAI1\"].json[\"totalAmount\"] - $node[\"OpenAI1\"].json[\"taxAmount\"], \"TaxType\": \"INPUT2\", \"TaxAmount\": $node[\"OpenAI1\"].json[\"taxAmount\"] }] }}"
+            },
+            {
+              "name": "CurrencyCode",
+              "value": "={{$node[\"OpenAI1\"].json[\"currency\"]}}"
+            },
+            {
+              "name": "Reference",
+              "value": "={{$node[\"OpenAI1\"].json[\"invoiceNumber\"]}}"
+            },
+            {
+              "name": "Status",
+              "value": "SUBMITTED"
+            }
+          ]
+        }
+      },
+      "id": "8a8bcf8c-9b66-4523-a3df-d3d7e1bc3f97",
+      "name": "HTTP Request1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1250,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "requestMethod": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/BankTransactions?where=Status==\"AUTHORISED\"",
+        "options": {
+          "headerParametersUi": {
+            "parameter": [
+              {
+                "name": "Accept",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "c0c4a4f6-d78a-41de-ab4f-9818cdb83d56",
+      "name": "HTTP Request2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1450,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get relevant data from previous nodes\nconst invoice = $node[\"HTTP Request1\"].json.Invoices[0];\nconst transactions = $node[\"HTTP Request2\"].json.BankTransactions;\nconst exchangeRates = $node[\"HTTP Request\"].json.rates;\n\n// Reconciliation logic\nconst possibleMatches = [];\n\n// Convert amount to invoice currency if needed\nfunction convertCurrency(amount, fromCurrency, toCurrency) {\n  if (fromCurrency === toCurrency) return amount;\n  \n  // Convert through the base currency\n  const invoiceCurrencyRate = exchangeRates[toCurrency] || 1;\n  const txCurrencyRate = exchangeRates[fromCurrency] || 1;\n  \n  return amount * (invoiceCurrencyRate / txCurrencyRate);\n}\n\n// Calculate days between two dates\nfunction daysBetween(date1, date2) {\n  const d1 = new Date(date1);\n  const d2 = new Date(date2);\n  const diffTime = Math.abs(d2 - d1);\n  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));\n  return diffDays;\n}\n\n// Check each transaction for a match\nfor (const tx of transactions) {\n  // Skip deposits (we're looking for payments)\n  if (tx.Type !== \"SPEND\") continue;\n  \n  // Convert transaction amount to invoice currency\n  const txAmount = Math.abs(tx.Total);\n  const txCurrency = tx.CurrencyCode || \"USD\"; // Default if not specified\n  const invoiceAmount = invoice.Total;\n  const invoiceCurrency = invoice.CurrencyCode;\n  \n  const convertedAmount = convertCurrency(txAmount, txCurrency, invoiceCurrency);\n  \n  // Check if amounts match (with small tolerance for rounding issues)\n  const amountMatch = Math.abs(convertedAmount - invoiceAmount) < 0.02;\n  \n  // Check if dates are reasonably close (within 30 days)\n  const dateDiff = daysBetween(tx.Date, invoice.Date);\n  const dateMatch = dateDiff <= 30;\n  \n  // Add to possible matches if both criteria met\n  if (amountMatch && dateMatch) {\n    possibleMatches.push({\n      transactionId: tx.BankTransactionID,\n      date: tx.Date,\n      amount: tx.Total,\n      currency: txCurrency,\n      convertedAmount: convertedAmount,\n      dateDifference: dateDiff\n    });\n  }\n}\n\n// Sort matches by date proximity (closest first)\npossibleMatches.sort((a, b) => a.dateDifference - b.dateDifference);\n\n// Return the result\nreturn {\n  json: {\n    invoice: invoice,\n    possibleMatches: possibleMatches,\n    // Add a selected match if we found any\n    selectedMatch: possibleMatches.length > 0 ? possibleMatches[0] : null\n  }\n};"
+      },
+      "id": "d471f80a-8de3-4a9a-ba70-9538bbaa35f9",
+      "name": "Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1650,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.selectedMatch !== null}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "e9b1a8c4-e7c9-4b58-8ab7-a33eb7fa1c7a",
+      "name": "Match Found?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        1850,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "requestMethod": "POST",
+        "url": "=https://api.xero.com/api.xro/2.0/BankTransactions/{{$json.selectedMatch.transactionId}}/Allocations",
+        "options": {
+          "headerParametersUi": {
+            "parameter": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Accept",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "Allocations",
+              "value": "={{ [{\"Invoice\": {\"InvoiceID\": $json.invoice.InvoiceID}, \"Amount\": $json.invoice.Total}] }}"
+            }
+          ]
+        }
+      },
+      "id": "b932fd1a-9d3d-4a75-b582-49d55b4f0f6e",
+      "name": "HTTP Request3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2050,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "message": "=## Invoice Processing Complete\n\n**Invoice**: {{$node[\"OpenAI1\"].json.invoiceNumber}}\n**Amount**: {{$node[\"OpenAI1\"].json.currency}} {{$node[\"OpenAI1\"].json.totalAmount}}\n**Vendor**: {{$node[\"OpenAI1\"].json.vendorName}}\n\n**Status**: Invoice created in Xero with ID {{$node[\"HTTP Request1\"].json.Invoices[0].InvoiceID}}\n\n**Reconciliation**: {{$node[\"Match Found?\"].json.selectedMatch ? \"Automatically reconciled with bank transaction\" : \"No matching transaction found for automatic reconciliation\"}}"
+      },
+      "id": "4dc9ff19-6204-4f31-a5d7-12051ca4add7",
+      "name": "Send Message",
+      "type": "n8n-nodes-base.sendMessage",
+      "typeVersion": 1,
+      "position": [
+        2250,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "message": "=## Invoice Created But Not Reconciled\n\n**Invoice**: {{$node[\"OpenAI1\"].json.invoiceNumber}}\n**Amount**: {{$node[\"OpenAI1\"].json.currency}} {{$node[\"OpenAI1\"].json.totalAmount}}\n**Vendor**: {{$node[\"OpenAI1\"].json.vendorName}}\n\n**Status**: Invoice created in Xero with ID {{$node[\"HTTP Request1\"].json.Invoices[0].InvoiceID}}\n\n**Reconciliation**: No matching transaction found for automatic reconciliation. Manual reconciliation required."
+      },
+      "id": "b7c6240f-eb84-4ef9-ad27-09fe13da92f3",
+      "name": "Send Message1",
+      "type": "n8n-nodes-base.sendMessage",
+      "typeVersion": 1,
+      "position": [
+        2250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "requestMethod": "POST",
+        "url": "=https://api.xero.com/api.xro/2.0/Invoices/{{$node[\"HTTP Request1\"].json.Invoices[0].InvoiceID}}/Attachments",
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "bodyContentType": "multipart-form-data",
+          "proxy": "",
+          "timeout": "",
+          "headerParametersUi": {
+            "parameter": []
+          }
+        },
+        "bodyParametersUi": {
+          "parameter": []
+        },
+        "filesToSend": {
+          "values": [
+            {
+              "name": "invoice",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "={{$node[\"Microsoft Outlook\"].json[\"attachments\"][0].name}}",
+              "contentType": "={{$node[\"Microsoft Outlook\"].json[\"attachments\"][0].contentType}}"
+            }
+          ]
+        }
+      },
+      "id": "a8b2bf7f-f0be-4bc3-9e0e-9ffb4cc4a43d",
+      "name": "HTTP Request4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1050,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Evaluate which attachment is most likely to be the invoice\nfunction getInvoiceAttachment(attachments, invoiceNumber) {\n  if (!attachments || attachments.length === 0) {\n    return null;\n  }\n  \n  // If there's only one attachment, return it\n  if (attachments.length === 1) {\n    return attachments[0];\n  }\n  \n  // Check for PDF files first\n  const pdfAttachments = attachments.filter(a => \n    a.contentType === 'application/pdf' || \n    a.name.toLowerCase().endsWith('.pdf')\n  );\n  \n  if (pdfAttachments.length === 1) {\n    return pdfAttachments[0];\n  }\n  \n  // Look for attachments with 'invoice' in the name\n  const invoiceAttachments = attachments.filter(a => \n    a.name.toLowerCase().includes('invoice')\n  );\n  \n  if (invoiceAttachments.length > 0) {\n    return invoiceAttachments[0];\n  }\n  \n  // If we have an invoice number, look for attachments with that number\n  if (invoiceNumber) {\n    const matchingAttachments = attachments.filter(a => \n      a.name.includes(invoiceNumber)\n    );\n    \n    if (matchingAttachments.length > 0) {\n      return matchingAttachments[0];\n    }\n  }\n  \n  // Default to the first attachment if we couldn't find a better match\n  return attachments[0];\n}\n\n// Get the best attachment\nconst attachments = $node[\"Microsoft Outlook\"].json.attachments;\nconst invoiceNumber = $node[\"OpenAI1\"].json.invoiceNumber;\nconst bestAttachment = getInvoiceAttachment(attachments, invoiceNumber);\n\nreturn { json: { bestAttachment } };"
+      },
+      "id": "6ef4e1c2-a8c4-44a0-8aab-e84644ec70b6",
+      "name": "Function",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        850,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "message": "=## Not an Invoice\n\nThe email \"{{$node[\"Microsoft Outlook\"].json[\"subject\"]}}\" was analyzed and determined not to be an invoice.\n\n**Confidence**: {{$node[\"OpenAI\"].json[\"confidence\"]}}\n**Reasoning**: {{$node[\"OpenAI\"].json[\"reasoning\"]}}"
+      },
+      "id": "84d56cc1-8e96-41e0-8a56-b15b12d8fa8a",
+      "name": "Send Message2",
+      "type": "n8n-nodes-base.sendMessage",
+      "typeVersion": 1,
+      "position": [
+        850,
+        600
+      ]
+    }
+  ],
+  "connections": {
+    "Microsoft Outlook": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Invoice Detection Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invoice Detection Switch": {
+      "main": [
+        [
+          {
+            "node": "OpenAI1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Function",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Message2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Match Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Found?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "Send Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Function": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request4": {
+      "main": [
+        []
+      ]
+    }
+  }
+} 
